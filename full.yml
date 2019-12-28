@@ -1,0 +1,59 @@
+---
+
+## RadioClub FTP Archive https://github.com/acien101/docker-alpine-apache-ftp-server
+
+- name: Deploy archive ftp in docker
+  hosts: zulu
+  become: true
+  gather_facts: false
+  vars:
+    service_name: archive_ftp
+    create_network: false
+    enable_db: false
+    docker_image: "{{ archive_ftp_image }}"
+    docker_command: |
+      /usr/bin/docker run --rm --name "{{ service_name }}" \
+      -v "{{ arhive_ftp_directory.data }}":/web/html/ftp \
+      -p "{{ archive_ftp_port}}:21" \
+      -p "{{ archive_ftp_web_port }}:80" \
+      -p "{{ archive_ftp_passive_min_port }}-{{ archive_ftp_passive_max_port }}:21000-21010" \
+      -e USERS="{{ archive_ftp_users }}" \
+      -e ADDRESS="{{ archive_ftp_domain }}" \
+      "{{ docker_image }}"
+  pre_tasks:
+    - name: Create archive ftp directories 755
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: 0755
+      with_items:
+        - "{{ arhive_ftp_directory.data }}"
+  roles:
+    - role: generic_docker_systemd
+  tags: [ never, archive_ftp ]
+
+- name: Get archive ftp subdomain Let's Encrypt certificate
+  hosts: zulu
+  become: true
+  gather_facts: false
+  vars:
+    domain: "{{ archive_ftp_domain }}"
+    letsencrypt_renew_hook: /usr/sbin/service nginx reload
+  roles:
+    - role: letsencrypt-request
+      tags: letsecrypt_request
+  tags: [ never, archive_ftp ]
+
+- name: Configure nginx proxy for archive ftp
+  hosts: zulu
+  become: true
+  gather_facts: false
+  vars:
+    domain: "{{ archive_ftp_domain }}"
+    binded_port: "{{ archive_ftp_web_port }}"
+  roles:
+    - role: add_nginx_proxy_conf
+      tags: proxy
+  tags: [ never, archive_ftp ]
