@@ -1,0 +1,3 @@
+[submodule "custom/ea4rct"]
+	path = custom/ea4rct
+	url = git@git.radio.clubs.etsit.upm.es:junta/anarres_conf.git
