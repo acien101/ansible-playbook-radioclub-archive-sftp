@@ -44,17 +44,23 @@ web_path_letsencrypt: "{{ web_path }}/letsencrypt"
 web_path_default: "{{ web_path }}/default"
 
 
-## RadioClub FTP archive
+## RadioClub SFTP archive
 
-archive_ftp_domain: "ftp.{{ base_domain}}"
-archive_ftp_image: acien101/alpine-apache-ftp-server:0.0.4
-archive_ftp_port: 21
-archive_ftp_passive_min_port: 21000
-archive_ftp_passive_max_port: 21010
-archive_ftp_web_port: 3444
+archive_sftp_domain: "ftp.{{ base_domain}}"
+archive_sftp_image: acien101/alpine-apache-sftp-server
+archive_sftp_port: 2222
+archive_sftp_web_port: 3449
+archive_sftp_ed_ssh_key: "TBD"     # Private key for not getting MITM warning
+archive_sftp_rsa_ssh_key: "TBD"     # Private key for not getting MITM warning
 
-arhive_ftp_directory:
-  data: "{{ data_path }}/ftp/data"
+archive_sftp_directory:
+  data: "{{ data_path }}/sftp/data"
+  config: "{{ data_path }}/sftp/config"
 
-#format `name1|password1|[folder1][|uid1] name2|password2|[folder2][|uid2]`
-archive_ftp_users: "one|1234" # Changeme
+archive_sftp_user_data:
+  username: "radioclub"
+  pass: "1234"
+  uid:
+  guid:
+  folder: "upload"
+

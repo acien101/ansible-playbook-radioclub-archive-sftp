@@ -1,27 +1,28 @@
 ---
 
-## RadioClub FTP Archive https://github.com/acien101/docker-alpine-apache-ftp-server
+## RadioClub sftp Archive https://github.com/acien101/docker-alpine-apache-sftp-server
 
-- name: Deploy archive ftp in docker
+- name: Deploy archive sftp in docker
   hosts: zulu
   become: true
   gather_facts: false
   vars:
-    service_name: archive_ftp
+    service_name: archive-sftp
+    template_path: users.config.j2
     create_network: false
     enable_db: false
-    docker_image: "{{ archive_ftp_image }}"
+    docker_image: "{{ archive_sftp_image }}"
     docker_command: |
       /usr/bin/docker run --rm --name "{{ service_name }}" \
-      -v "{{ arhive_ftp_directory.data }}":/web/html/ftp \
-      -p "{{ archive_ftp_port}}:21" \
-      -p "{{ archive_ftp_web_port }}:80" \
-      -p "{{ archive_ftp_passive_min_port }}-{{ archive_ftp_passive_max_port }}:21000-21010" \
-      -e USERS="{{ archive_ftp_users }}" \
-      -e ADDRESS="{{ archive_ftp_domain }}" \
+      -v "{{ archive_sftp_directory.config }}/users.conf":/etc/sftp/users.conf:ro \
+      -v "{{ archive_sftp_directory.data }}:/home/{{ archive_sftp_user_data.username }}/{{ archive_sftp_user_data.folder }}" \
+      -v "{{ archive_sftp_directory.config }}/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key" \
+      -v "{{ archive_sftp_directory.config }}/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key" \
+      -p "{{ archive_sftp_port}}:22" \
+      -p "{{ archive_sftp_web_port }}:80" \
       "{{ docker_image }}"
   pre_tasks:
-    - name: Create archive ftp directories 755
+    - name: Create archive sftp directories 755
       file:
         path: "{{ item }}"
         state: directory
@@ -29,31 +30,65 @@
         group: root
         mode: 0755
       with_items:
-        - "{{ arhive_ftp_directory.data }}"
+        - "{{ archive_sftp_directory.config }}"
+    - name: Create archive sftp directories 755
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ archive_sftp_user_data.uid }}"
+        group: "{{ archive_sftp_user_data.guid }}"
+        mode: 0755
+      with_items:
+        - "{{ archive_sftp_directory.data }}"
+    - name: Configure sftp
+      template:
+        src: "{{ template_path }}"
+        dest: "{{ archive_sftp_directory.config }}/users.conf"
+        force: "{{ override | default('no') }}"
+        owner: "root"
+        group: "root"
+        mode: 0600
+    - name: Create sftp ssh rsa key
+      command: "ssh-keygen -q -t rsa -f {{ archive_sftp_directory.config }}/ssh_host_rsa_key -C \"\" -N \"\""
+      args:
+        creates: "{{ archive_sftp_directory.config }}/ssh_host_rsa_key"
+    - name: Create sftp ssh ed key
+      command: "ssh-keygen -q -t ed25519 -f {{ archive_sftp_directory.config }}/ssh_host_ed25519_key -C \"\" -N \"\""
+      args:
+        creates: "{{ archive_sftp_directory.config }}/ssh_host_ed25519_key"
+  post_tasks:
+    - name: Add iptables rules for sftp
+      become: true
+      iptables_raw:
+        name: sftp_rules
+        weight: 20
+        rules: |
+          -A INPUT -p tcp -m state --state NEW -m tcp --dport {{ archive_sftp_port | default('2222') }} -j ACCEPT
+      tags: iptables
   roles:
     - role: generic_docker_systemd
-  tags: [ never, archive_ftp ]
+  tags: [ never, archive_sftp ]
 
-- name: Get archive ftp subdomain Let's Encrypt certificate
+- name: Get archive sftp subdomain Let's Encrypt certificate
   hosts: zulu
   become: true
   gather_facts: false
   vars:
-    domain: "{{ archive_ftp_domain }}"
+    domain: "{{ archive_sftp_domain }}"
     letsencrypt_renew_hook: /usr/sbin/service nginx reload
   roles:
     - role: letsencrypt-request
       tags: letsecrypt_request
-  tags: [ never, archive_ftp ]
+  tags: [ never, archive_sftp ]
 
-- name: Configure nginx proxy for archive ftp
+- name: Configure nginx proxy for archive sftp
   hosts: zulu
   become: true
   gather_facts: false
   vars:
-    domain: "{{ archive_ftp_domain }}"
-    binded_port: "{{ archive_ftp_web_port }}"
+    domain: "{{ archive_sftp_domain }}"
+    binded_port: "{{ archive_sftp_web_port }}"
   roles:
     - role: add_nginx_proxy_conf
       tags: proxy
-  tags: [ never, archive_ftp ]
+  tags: [ never, archive_sftp ]
